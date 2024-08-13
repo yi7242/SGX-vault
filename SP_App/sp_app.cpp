@@ -1706,6 +1706,8 @@ int sample_remote_computation(std::string isv_url,
     req_json_obj["tag2"] = tags2_b64;
 
     Client client(isv_url);
+    auto hello_res = client.Get("/check_master");
+    print_debug_message(hello_res->body, INFO);
 
     request_json = req_json_obj.dump();
 

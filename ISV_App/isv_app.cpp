@@ -23,6 +23,7 @@ using namespace httplib;
 
 
 /* プロトタイプ宣言 */
+bool check_master();
 int initialize_enclave(sgx_enclave_id_t &eid);
 
 int generate_msg0(sgx_enclave_id_t eid,
@@ -70,6 +71,14 @@ void ocall_print_status(sgx_status_t st)
 void server_logics(sgx_enclave_id_t eid)
 {
     Server svr;
+    svr.Get("/check_master", [](const Request& req, Response& res) {
+        bool exist = check_master();
+        if (exist) {
+            res.set_content("Master password exists", "text/plain");
+        } else {
+            res.set_content("Master password does not exist", "text/plain");
+        }
+    });
 
     /* チャレンジリクエストに応じmsg0を返信 */
     svr.Get("/msg0", [&eid](const Request& req, Response& res)
@@ -831,7 +840,19 @@ int initialize_enclave(sgx_enclave_id_t &eid)
 
     return 0;
 }
-
+bool check_master() {
+    std::ifstream ifs;            //  ifstream の変数（インスタンス）を生成．
+ 
+    ifs.open("master.dat");    //  ファイルを開く．fopen() に相当．
+ 
+    if( ! ifs ) {            //  ファイルが開けない場合の処理
+        return false;
+    }
+    else {
+        ifs.close();         
+        return true;
+    }
+}
 
 int main()
 {
