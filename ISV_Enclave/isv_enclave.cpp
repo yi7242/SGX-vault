@@ -203,7 +203,7 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
         return status;
     }
     else {
-        ocall_print((const char*)master_plain, 2);
+        ocall_print((const char*)master_plain, 0);
         ocall_print_status(status);
         delete master_plain;
         return status;

@@ -24,6 +24,8 @@ using namespace httplib;
 
 /* プロトタイプ宣言 */
 bool check_master();
+int master_sealing(sgx_enclave_id_t eid, std::string request_json,
+    std::string &response_json, std::string error_message);
 int initialize_enclave(sgx_enclave_id_t &eid);
 
 int generate_msg0(sgx_enclave_id_t eid,
@@ -199,6 +201,43 @@ void server_logics(sgx_enclave_id_t eid)
         std::string response_json, error_message = "";
 
         int ret = sample_addition(eid, request_json,
+            response_json, error_message);
+
+        if(!ret) res.status = 200;
+        else
+        {
+            json::JSON res_json_obj;
+            char *error_message_b64;
+
+            error_message_b64 = base64_encode<char, char>(
+                (char*)error_message.c_str(), error_message.length());
+            
+            res_json_obj["error_message"] = std::string(error_message_b64);
+            response_json = res_json_obj.dump();
+
+            res.status = 500;
+        }
+
+        print_debug_message("send the result response to SP.", INFO);
+        print_debug_message("", INFO);
+
+        res.set_content(response_json, "application/json");
+    });
+
+    svr.Post("/master_sealing", [&eid](const Request& req, Response& res)
+    {
+        std::string request_json = req.body;
+        std::string response_json, error_message = "";
+        if (check_master()) {
+            error_message = "Master pass is already set.";
+            res.status = 500;
+            json::JSON res_json_obj;
+            res_json_obj["error_message"] = std::string(error_message);
+            response_json = res_json_obj.dump();
+            res.set_content(response_json, "application/json");
+            return;
+        }
+        int ret = master_sealing(eid, request_json,
             response_json, error_message);
 
         if(!ret) res.status = 200;
@@ -687,7 +726,47 @@ int process_msg4(sgx_enclave_id_t eid,
     return 0;
 }
 
+int master_sealing(sgx_enclave_id_t eid, std::string request_json,
+    std::string &response_json, std::string error_message) {
+    print_debug_message("==============================================", INFO);
+    print_debug_message("Master Ceiling", INFO);
+    print_debug_message("==============================================", INFO);
+    print_debug_message("", INFO);
 
+    json::JSON req_json_obj= json::JSON::Load(request_json);
+
+    uint8_t *master;
+    uint8_t *iv, *master_tag;
+    size_t master_len, tmpsz;
+    sgx_ra_context_t ra_ctx;
+
+    ra_ctx = std::stoi(base64_decode<char, char>
+        ((char*)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
+    
+    master = base64_decode<uint8_t, char>
+        ((char*)req_json_obj["master"].ToString().c_str(), master_len);
+
+    iv = base64_decode<uint8_t, char>
+        ((char*)req_json_obj["iv"].ToString().c_str(), tmpsz);
+    master_tag = base64_decode<uint8_t, char>
+        ((char*)req_json_obj["master_tag"].ToString().c_str(), tmpsz);
+
+    /* ECALLを行い秘密計算による加算を実行 */
+    print_debug_message("Invoke ECALL for master sealing.", DEBUG_LOG);
+    print_debug_message("", DEBUG_LOG);
+    sgx_status_t master_status, master_retval;
+    master_status = ecall_master_sealing(eid, &master_retval, ra_ctx, master, master_len, iv,master_tag);
+    if(master_status != SGX_SUCCESS)
+    {
+        error_message = "Failed to complete sample addition ECALL.";   
+        return -1;
+    }
+
+    json::JSON res_json_obj;
+    res_json_obj["test"] = "success";
+    response_json = res_json_obj.dump();
+    return 0;
+    }
 /* SPから受信した2値をEnclave内で復号し加算して結果を返却 */
 int sample_addition(sgx_enclave_id_t eid, std::string request_json,
     std::string &response_json, std::string error_message)

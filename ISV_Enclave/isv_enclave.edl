@@ -24,6 +24,11 @@ enclave
             [in, size=16]uint8_t *tag1, [in, size=16]uint8_t *tag2, 
             [out, size=32]uint8_t *result, [out]size_t *result_len,
             [out, size=12]uint8_t *iv_result, [out, size=16]uint8_t *tag_result);
+
+        public sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
+            [in, size=master_len]uint8_t *master, size_t master_len,
+            [in, size=12]uint8_t *iv,
+            [in, size=16]uint8_t *master_tag);
             
         public int calc_sealed_len(int message_len);
 		
