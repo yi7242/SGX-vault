@@ -24,6 +24,7 @@ using namespace httplib;
 
 /* プロトタイプ宣言 */
 bool check_master();
+int ocall_store_sealed_master(const char *sealed, int sealed_len);
 int master_sealing(sgx_enclave_id_t eid, std::string request_json,
     std::string &response_json, std::string error_message);
 int initialize_enclave(sgx_enclave_id_t &eid);
@@ -48,7 +49,7 @@ void destruct_ra_context(sgx_enclave_id_t eid, std::string request_json);
 
 int ocall_store_sealed_master(const char *sealed, int sealed_len)
 {
-    std::ofstream ofs("sealed.dat", std::ios::binary);
+    std::ofstream ofs("master.dat", std::ios::binary);
     if(!ofs)
     {
         std::cerr << "Failed to open file for sealed data." << std::endl;
