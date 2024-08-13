@@ -162,7 +162,8 @@ sgx_status_t ecall_sample_addition(sgx_ra_context_t ra_ctx,
 }
 
 sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
-    uint8_t *master, size_t master_len, uint8_t *iv, uint8_t *master_tag
+    uint8_t *master, size_t master_len, uint8_t *iv, uint8_t *master_tag, 
+    int policy
     )
 {
     sgx_status_t status = SGX_SUCCESS;
@@ -205,6 +206,22 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
     else {
         ocall_print((const char*)master_plain, 0);
         ocall_print_status(status);
+        uint8_t *master_char = (uint8_t*)master_plain.c_str();
+        int master_char_len = strlen((char*)master_char);
+        int sealed_len = calc_sealed_len(master_char_len);
+        uint8_t *sealed = new uint8_t[sealed_len];
+        do_sealing(master_char, 
+				master_char_len, sealed, sealed_len, policy);
+        int check = ocall_store_sealed_master((const char*)sealed, sealed_len);
+        if (check == -1) {
+            const char *message = "Failed to save from enclave";
+            ocall_print(message, 2); //2はエラーログである事を表す
+        }
+        else {
+            const char *message = "Successfully saved from enclave";
+            ocall_print(message, 0);
+        }
+        delete master_char;
         delete master_plain;
         return status;
     }

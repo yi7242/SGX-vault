@@ -28,7 +28,7 @@ enclave
         public sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
             [in, size=master_len]uint8_t *master, size_t master_len,
             [in, size=12]uint8_t *iv,
-            [in, size=16]uint8_t *master_tag);
+            [in, size=16]uint8_t *master_tag, int policy);
             
         public int calc_sealed_len(int message_len);
 		
@@ -51,5 +51,6 @@ enclave
         void ocall_print([in, string]const char *str, int log_type);
 
         void ocall_print_status(sgx_status_t st);
+        int ocall_store_sealed_master([in, string]const char *sealed, int sealed_len);
     };
 };

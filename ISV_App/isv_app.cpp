@@ -46,7 +46,18 @@ int sample_addition(sgx_enclave_id_t eid, std::string request_json,
 void destruct_ra_context(sgx_enclave_id_t eid, std::string request_json);
 
 
-/* Enclave内の値の出力を行うOCALL（主にデバッグやログ用） */
+int ocall_store_sealed_master(const char *sealed, int sealed_len)
+{
+    std::ofstream ofs("sealed.dat", std::ios::binary);
+    if(!ofs)
+    {
+        std::cerr << "Failed to open file for sealed data." << std::endl;
+        return -1;
+    }
+    ofs.write(sealed, sealed_len);
+    return 0;
+}
+
 void ocall_print(const char *str, int log_type)
 {
     MESSAGE_TYPE type;
@@ -755,7 +766,7 @@ int master_sealing(sgx_enclave_id_t eid, std::string request_json,
     print_debug_message("Invoke ECALL for master sealing.", DEBUG_LOG);
     print_debug_message("", DEBUG_LOG);
     sgx_status_t master_status, master_retval;
-    master_status = ecall_master_sealing(eid, &master_retval, ra_ctx, master, master_len, iv,master_tag);
+    master_status = ecall_master_sealing(eid, &master_retval, ra_ctx, master, master_len, iv,master_tag,0);
     if(master_status != SGX_SUCCESS)
     {
         error_message = "Failed to complete sample addition ECALL.";   
@@ -826,7 +837,7 @@ int sample_addition(sgx_enclave_id_t eid, std::string request_json,
         cipher1_len, cipher2, cipher2_len, iv, tag1, tag2, 
         result, &result_len, iv_result, tag_result);
     sgx_status_t master_status, master_retval;
-    master_status = ecall_master_sealing(eid, &master_retval, ra_ctx, master, master_len, iv,master_tag);
+    master_status = ecall_master_sealing(eid, &master_retval, ra_ctx, master, master_len, iv,master_tag,0);
     if(status != SGX_SUCCESS)
     {
         error_message = "Failed to complete sample addition ECALL.";   
