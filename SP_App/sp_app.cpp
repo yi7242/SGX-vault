@@ -1648,6 +1648,7 @@ int sample_remote_computation(std::string isv_url,
     uint64_t secret_2 = 800;
     std::string secret_1_str = std::to_string(secret_1);
     std::string secret_2_str = std::to_string(secret_2);
+    std::string master = "M@STERp@ssw0rd";
 
     print_debug_message("First integer to send -> ", INFO);
     print_debug_message(secret_1_str, INFO);
@@ -1658,17 +1659,22 @@ int sample_remote_computation(std::string isv_url,
 
     uint8_t *plain_send_1 = (uint8_t*)secret_1_str.c_str();
     uint8_t *plain_send_2 = (uint8_t*)secret_2_str.c_str();
+    uint8_t *master_send = (uint8_t*)master.c_str();
+
 
     size_t secret_1_len = secret_1_str.length();
     size_t secret_2_len = secret_2_str.length();
+    size_t master_len = master.length();
 
     uint8_t *iv_send = new uint8_t[12]();
     uint8_t *tag_send_1 = new uint8_t[16]();
     uint8_t *tag_send_2 = new uint8_t[16]();
+    uint8_t *master_tag_send = new uint8_t[16]();
 
     /* GCM方式は平文と暗号文の長さが同一 */
     uint8_t *cipher_send_1 = new uint8_t[secret_1_len]();
     uint8_t *cipher_send_2 = new uint8_t[secret_2_len]();
+    uint8_t *master_cipher_send = new uint8_t[master_len]();
 
     if(generate_nonce(iv_send, 12)) return -1;
 
@@ -1684,16 +1690,23 @@ int sample_remote_computation(std::string isv_url,
     {
         return -1;
     }
+    if(-1 == (aes_128_gcm_encrypt(master_send,
+        master_len, sk, iv_send, master_cipher_send, master_tag_send)))
+    {
+        return -1;
+    }
 
-    char *cs1_b64, *cs2_b64;
+    char *cs1_b64, *cs2_b64,  *master_b64;
     char *ivs_b64;
-    char *tags1_b64, *tags2_b64;
+    char *tags1_b64, *tags2_b64, *master_tag_b64;
 
     cs1_b64 = base64_encode<char, uint8_t>(cipher_send_1, secret_1_len);
     cs2_b64 = base64_encode<char, uint8_t>(cipher_send_2, secret_2_len);
+    master_b64 = base64_encode<char, uint8_t>(master_cipher_send, master_len);
     ivs_b64 = base64_encode<char, uint8_t>(iv_send, 12);
     tags1_b64 = base64_encode<char, uint8_t>(tag_send_1, 16);
     tags2_b64 = base64_encode<char, uint8_t>(tag_send_2, 16);
+    master_tag_b64 = base64_encode<char, uint8_t>(master_tag_send, 16);
 
     json::JSON req_json_obj, res_json_obj;
     std::string request_json, response_json;
@@ -1701,13 +1714,31 @@ int sample_remote_computation(std::string isv_url,
     req_json_obj["ra_context"] = ra_ctx_b64;
     req_json_obj["cipher1"] = cs1_b64;
     req_json_obj["cipher2"] = cs2_b64;
+    req_json_obj["master"] = master_b64;
     req_json_obj["iv"] = ivs_b64;
     req_json_obj["tag1"] = tags1_b64;
     req_json_obj["tag2"] = tags2_b64;
+    req_json_obj["master_tag"] = master_tag_b64;
 
     Client client(isv_url);
     auto hello_res = client.Get("/check_master");
-    print_debug_message(hello_res->body, INFO);
+    bool master_exist;
+    if (hello_res->status != 200)
+    {
+        print_debug_message("Failed to access /check_master", ERROR);
+        return -1;
+    }
+    else {
+        if (hello_res->body == "yes") {
+            print_debug_message("masterkey exists",DEBUG_LOG);
+            master_exist = true;
+        }
+        else {
+            print_debug_message("masterkey doesn't exist", DEBUG_LOG);
+            master_exist = false;
+        }
+    }
+
 
     request_json = req_json_obj.dump();
 

@@ -74,9 +74,9 @@ void server_logics(sgx_enclave_id_t eid)
     svr.Get("/check_master", [](const Request& req, Response& res) {
         bool exist = check_master();
         if (exist) {
-            res.set_content("Master password exists", "text/plain");
+            res.set_content("yes", "text/plain");
         } else {
-            res.set_content("Master password does not exist", "text/plain");
+            res.set_content("no", "text/plain");
         }
     });
 
