@@ -25,6 +25,7 @@ using namespace httplib;
 /* プロトタイプ宣言 */
 bool check_master();
 int ocall_store_sealed_master(const char *sealed, int sealed_len);
+int ocall_get_sealed_master(uint8_t *sealed, int sealed_len);
 int master_sealing(sgx_enclave_id_t eid, std::string request_json,
     std::string &response_json, std::string error_message);
 int initialize_enclave(sgx_enclave_id_t &eid);
@@ -47,17 +48,6 @@ int sample_addition(sgx_enclave_id_t eid, std::string request_json,
 void destruct_ra_context(sgx_enclave_id_t eid, std::string request_json);
 
 
-int ocall_store_sealed_master(const char *sealed, int sealed_len)
-{
-    std::ofstream ofs("master.dat", std::ios::binary);
-    if(!ofs)
-    {
-        std::cerr << "Failed to open file for sealed data." << std::endl;
-        return -1;
-    }
-    ofs.write(sealed, sealed_len);
-    return 0;
-}
 
 void ocall_print(const char *str, int log_type)
 {
@@ -950,6 +940,38 @@ bool check_master() {
     }
 }
 
+int ocall_store_sealed_master(const char *sealed, int sealed_len)
+{
+    std::ofstream ofs("master.dat", std::ios::binary);
+    if(!ofs)
+    {
+        std::cerr << "Failed to open file for sealed data." << std::endl;
+        return -1;
+    }
+    ofs.write(sealed, sealed_len);
+    return 0;
+}
+
+int ocall_get_sealed_len(uint8_t *sealed, int &sealed_len) {
+    std::ifstream ifs("sealed.dat", std::ios::binary);
+
+    if(!ifs)
+    {
+        std::cerr << "Failed to open sealed.dat." << std::endl;
+        return -1;
+    }
+
+    ifs.seekg(0, std::ios::end);
+    sealed_len = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+
+    sealed = new uint8_t[sealed_len];
+
+
+    /* Convert ifstream to char array */
+    ifs.read((char*)sealed, sealed_len);
+    return 0;
+};
 int main()
 {
     print_debug_message("", INFO);
