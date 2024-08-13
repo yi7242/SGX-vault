@@ -1648,7 +1648,7 @@ int sample_remote_computation(std::string isv_url,
     uint64_t secret_2 = 800;
     std::string secret_1_str = std::to_string(secret_1);
     std::string secret_2_str = std::to_string(secret_2);
-    std::string master = "M@STERp@ssw0rd";
+    std::string master = "M@STERp@ssw0rd";  
 
     print_debug_message("First integer to send -> ", INFO);
     print_debug_message(secret_1_str, INFO);
