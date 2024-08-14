@@ -29,6 +29,7 @@ enclave
             [in, size=master_len]uint8_t *master, size_t master_len,
             [in, size=12]uint8_t *iv,
             [in, size=16]uint8_t *master_tag, int policy);
+            public int calc_sealed_len(int message_len);
     };
 
     /* OCALLのプロトタイプを記述 */

@@ -32,6 +32,96 @@ static const sgx_ec256_public_t service_provider_public_key = {
         0xee, 0xb4, 0x84, 0xfc, 0x96, 0x2e, 0x22, 0x44
     }
 };
+sgx_status_t decrypt_message(sgx_ra_context_t ra_ctx, uint8_t *cipher, size_t cipher_len, uint8_t *iv, uint8_t *tag, uint8_t *plain) {
+    ocall_print("Starting decryption...", 1);
+    sgx_status_t status = SGX_SUCCESS;
+    sgx_ra_key_128_t sk_key, mk_key;
+
+    status = sgx_ra_get_keys(ra_ctx, SGX_RA_KEY_SK, &sk_key);
+    status = sgx_ra_get_keys(ra_ctx, SGX_RA_KEY_MK, &mk_key);
+
+    if(status != SGX_SUCCESS)
+    {
+        ocall_print("Failed to get session key.", 2);
+        ocall_print_status(status);
+        return status;
+    }
+    status = sgx_rijndael128GCM_decrypt(&sk_key, cipher,
+        cipher_len, plain, iv, 12, NULL, 0, 
+        (sgx_aes_gcm_128bit_tag_t*)tag);
+    
+    if(status != SGX_SUCCESS)
+    {
+        ocall_print("Failed to decrypt cipher.", 2);
+        ocall_print_status(status);
+        return status;
+    }
+    ocall_print("Decrypted message(string)", 0);
+    ocall_print((const char*)plain, 0);
+    ocall_print_status(status);
+    return status;
+}
+
+int calc_sealed_len(int message_len)
+{
+	return sgx_calc_sealed_data_size(0, message_len);
+}
+
+void do_sealing(uint8_t *message, int message_len, uint8_t *sealed,
+	int sealed_len, int policy)
+{
+	uint16_t key_policy;
+	sgx_status_t status;
+	sgx_attributes_t attr;
+	sgx_misc_select_t misc = 0xF0000000;
+
+	attr.flags = 0xFF0000000000000B;
+	attr.xfrm = 0;
+
+	if(policy == MRENCLAVE)
+	{
+		key_policy = 0x0001;
+	}
+	else
+	{
+		key_policy = 0x0002;
+	}
+
+	
+	status = sgx_seal_data_ex(key_policy, attr, misc, 0, NULL,
+		message_len, message, sealed_len, (sgx_sealed_data_t*)sealed);
+
+	ocall_print_status(status);
+}
+
+
+
+
+int calc_unsealed_len(uint8_t *sealed, int sealed_len)
+{
+	return sgx_get_encrypt_txt_len((sgx_sealed_data_t*)sealed);
+}
+
+
+
+
+sgx_status_t do_unsealing(uint8_t *sealed, int sealed_len,
+	uint8_t *unsealed, int unsealed_len)
+{
+    ocall_print("Starting unsealing...", 1);
+	sgx_status_t status;
+	status = sgx_unseal_data((sgx_sealed_data_t*)sealed, NULL, 0,
+		unsealed, (uint32_t*)&unsealed_len);
+	ocall_print_status(status);
+    if (status != SGX_SUCCESS) {
+        ocall_print("Failed to unseal data", 2);
+    }
+    else {
+        ocall_print("Unsealed data(string)", 0);
+        ocall_print((const char*)unsealed, 0);
+    }
+    return status;
+}
 
 
 /* RAを初期化しsgx_ra_context_tを取得。
@@ -242,97 +332,3 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
     }
 }
 
-sgx_status_t decrypt_message(sgx_ra_context_t ra_ctx, uint8_t *cipher, size_t cipher_len, uint8_t *iv, uint8_t *tag, uint8_t *plain) {
-    ocall_print("Starting decryption...", 1);
-    sgx_status_t status = SGX_SUCCESS;
-    sgx_ra_key_128_t sk_key, mk_key;
-
-    status = sgx_ra_get_keys(ra_ctx, SGX_RA_KEY_SK, &sk_key);
-    status = sgx_ra_get_keys(ra_ctx, SGX_RA_KEY_MK, &mk_key);
-
-    if(status != SGX_SUCCESS)
-    {
-        ocall_print("Failed to get session key.", 2);
-        ocall_print_status(status);
-        return status;
-    }
-    status = sgx_rijndael128GCM_decrypt(&sk_key, cipher,
-        cipher_len, plain, iv, 12, NULL, 0, 
-        (sgx_aes_gcm_128bit_tag_t*)master_tag);
-    
-    if(status != SGX_SUCCESS)
-    {
-        ocall_print("Failed to decrypt cipher.", 2);
-        ocall_print_status(status);
-        return status;
-    }
-    ocall_print("Decrypted message(string)", 0);
-    ocall_print((const char*)plain, 0);
-    ocall_print_status(status);
-    return status;
-}
-
-int calc_sealed_len(int message_len)
-{
-	return sgx_calc_sealed_data_size(0, message_len);
-}
-
-
-
-
-
-void do_sealing(uint8_t *message, int message_len, uint8_t *sealed,
-	int sealed_len, int policy)
-{
-	uint16_t key_policy;
-	sgx_status_t status;
-	sgx_attributes_t attr;
-	sgx_misc_select_t misc = 0xF0000000;
-
-	attr.flags = 0xFF0000000000000B;
-	attr.xfrm = 0;
-
-	if(policy == MRENCLAVE)
-	{
-		key_policy = 0x0001;
-	}
-	else
-	{
-		key_policy = 0x0002;
-	}
-
-	
-	status = sgx_seal_data_ex(key_policy, attr, misc, 0, NULL,
-		message_len, message, sealed_len, (sgx_sealed_data_t*)sealed);
-
-	ocall_print_status(status);
-}
-
-
-
-
-int calc_unsealed_len(uint8_t *sealed, int sealed_len)
-{
-	return sgx_get_encrypt_txt_len((sgx_sealed_data_t*)sealed);
-}
-
-
-
-
-sgx_status_t do_unsealing(uint8_t *sealed, int sealed_len,
-	uint8_t *unsealed, int unsealed_len)
-{
-    ocall_print("Starting unsealing...", 1);
-	sgx_status_t status;
-	status = sgx_unseal_data((sgx_sealed_data_t*)sealed, NULL, 0,
-		unsealed, (uint32_t*)&unsealed_len);
-	ocall_print_status(status);
-    if (status != SGX_SUCCESS) {
-        ocall_print("Failed to unseal data", 2);
-    }
-    else {
-        ocall_print("Unsealed data(string)", 0);
-        ocall_print((const char*)unsealed, 0);
-    }
-    return status;
-}
