@@ -7,3 +7,4 @@ isv_app
 sp_app
 ISV_App/isv_enclave_u.*
 ISV_Enclave/isv_enclave_t.*
+master.dat
