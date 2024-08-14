@@ -258,26 +258,8 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
     )
 {
     sgx_status_t status = SGX_SUCCESS;
-    sgx_ra_key_128_t sk_key, mk_key;
-
-    status = sgx_ra_get_keys(ra_ctx, SGX_RA_KEY_SK, &sk_key);
-    status = sgx_ra_get_keys(ra_ctx, SGX_RA_KEY_MK, &mk_key);
-
-    if(status != SGX_SUCCESS)
-    {
-        const char *message = "Failed to get session key.";
-        ocall_print(message, 2); //2はエラーログである事を表す
-        ocall_print_status(status);
-        return status;
-    }
-    /* GCMでは暗号文と平文の長さが同一 */
     uint8_t *master_plain = new uint8_t[master_len]();    
-
-    /* GCM復号 */
-    status = sgx_rijndael128GCM_decrypt(&sk_key, master,
-        master_len, master_plain, iv, 12, NULL, 0, 
-        (sgx_aes_gcm_128bit_tag_t*)master_tag);
-    
+    status = decrypt_message(ra_ctx, master, master_len, iv, master_tag, master_plain);
     if(status != SGX_SUCCESS)
     {
         const char *message = "Failed to decrypt master.";
