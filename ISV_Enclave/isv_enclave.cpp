@@ -323,7 +323,7 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
             ocall_print(std::to_string(est_unsealed_len).c_str(), 0);
             
             uint8_t* final_unsealed = new uint8_t[100]();
-            do_unsealing(new_get_sealed, get_sealed_len, final_unsealed, est_unsealed_len, &check);
+            do_unsealing(new_get_sealed, get_sealed_len, final_unsealed, est_unsealed_len);
             ocall_print("get final unseal", 0);
             ocall_print((const char*)final_unsealed, 0);
         }
