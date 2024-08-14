@@ -6,6 +6,7 @@
 #include <sgx_tseal.h>
 #include <sgx_attributes.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string>
 #include "../common/debug_print.hpp"
@@ -216,10 +217,28 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
         if (check == -1) {
             const char *message = "Failed to save from enclave";
             ocall_print(message, 2); //2はエラーログである事を表す
+            
         }
         else {
             const char *message = "Successfully saved from enclave";
             ocall_print(message, 0);
+            // 以下unsealテスト, 決め打ち
+            uint8_t* get_sealed = new uint8_t[1000]();
+            int get_sealed_len = -1;
+            check = 0;
+            ocall_get_sealed_master(&check,get_sealed, &get_sealed_len);
+            if (check == -1) {
+                ocall_print("Failed to get sealed from enclave", 2);
+            }
+            // ocall_print((const char*)get_sealed, 0);
+            int est_unsealed_len = calc_unsealed_len(get_sealed, get_sealed_len);
+            ocall_print("get seal test", 0);
+            const char *char_len = std::to_string(get_sealed_len).c_str();
+            ocall_print(char_len, 0);
+            uint8_t* final_unsealed = new uint8_t[est_unsealed_len+10]();
+            do_unsealing(get_sealed, get_sealed_len, final_unsealed, est_unsealed_len, &check);
+            ocall_print("get final unseal", 0);
+            ocall_print((const char*)final_unsealed, 0);
         }
         delete master_plain;
         return status;
@@ -280,7 +299,7 @@ void do_unsealing(uint8_t *sealed, int sealed_len,
 
 	status = sgx_unseal_data((sgx_sealed_data_t*)sealed, NULL, 0,
 		unsealed, (uint32_t*)&unsealed_len);
-
+    ocall_print_status("heelp");
 	ocall_print_status(status);
 
 	if(status != SGX_SUCCESS)

@@ -49,8 +49,8 @@ enclave
     untrusted
     {
         void ocall_print([in, string]const char *str, int log_type);
-
         void ocall_print_status(sgx_status_t st);
         int ocall_store_sealed_master([in, string]const char *sealed, int sealed_len);
+        int ocall_get_sealed_master([out, size=1000]uint8_t *sealed, [out]int *sealed_len);
     };
 };
