@@ -53,6 +53,6 @@ enclave
         void ocall_print_binary([in, size=bin_size]uint8_t *bin, int bin_size, int log_type);
         int ocall_store_sealed_master([in, size=sealed_len]const char *sealed, int sealed_len);
         int ocall_get_sealed_len([in, string]const char *file_name);
-        int ocall_get_sealed_master([out, size=1000]uint8_t *sealed, [out]int *sealed_len);
+        int ocall_get_sealed_master([out, size=sealed_len]uint8_t *sealed, int sealed_len);
     };
 };

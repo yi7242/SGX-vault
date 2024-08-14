@@ -217,16 +217,19 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
         if (check == -1) {
             const char *message = "Failed to save from enclave";
             ocall_print(message, 2); //2はエラーログである事を表す
-            
         }
         else {
             const char *message = "Successfully saved from enclave";
             ocall_print(message, 0);
-            // 以下unsealテスト, 決め打ち
-            uint8_t* get_sealed = new uint8_t[1000]();
-            int get_sealed_len = -1;
-            check = 0;
-            ocall_get_sealed_master(&check,get_sealed, &get_sealed_len);
+            
+            int get_sealed_len;
+            ocall_get_sealed_len(&get_sealed_len, "master.dat");
+            if (get_sealed_len == -1) {
+                ocall_print("Failed to get sealed length from enclave", 2);
+            }
+            
+            uint8_t* get_sealed = new uint8_t[get_sealed_len]();
+            ocall_get_sealed_master(&check,get_sealed, get_sealed_len);
 
             uint8_t* new_get_sealed = new uint8_t[get_sealed_len]();
             memcpy(new_get_sealed, get_sealed, get_sealed_len);

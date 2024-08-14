@@ -977,24 +977,17 @@ int ocall_get_sealed_len(const char *file_name) {
     ifs.close();
     return sealed_len;
 }
-int ocall_get_sealed_master(uint8_t *sealed, int *sealed_len) {
+int ocall_get_sealed_master(uint8_t *sealed, int sealed_len) {
     std::ifstream ifs("master.dat", std::ios::binary);
-    std::cout << "testsetestse" << std::endl;
     if(!ifs)
     {
         print_debug_message("failed to get", INFO);
         return -1;
     }
-
-    ifs.seekg(0, std::ios::end);
-    *sealed_len = ifs.tellg();
-    ifs.seekg(0, std::ios::beg);
-    uint8_t *sealed2 = new uint8_t[*sealed_len];
-
-    /* Convert ifstream to char array */
-    ifs.read((char*)sealed2, *sealed_len);
-    print_debug_binary("sealed", sealed2, *sealed_len, INFO);
-    memcpy(sealed, sealed2, *sealed_len);
+    uint8_t *sealed2 = new uint8_t[sealed_len];
+    ifs.read((char*)sealed2, sealed_len);
+    print_debug_binary("sealed", sealed2, sealed_len, INFO);
+    memcpy(sealed, sealed2, sealed_len);
     print_debug_message("success to get seal", INFO);
 
     std::cout << sealed << std::endl;
