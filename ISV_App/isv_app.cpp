@@ -25,6 +25,7 @@ using namespace httplib;
 /* プロトタイプ宣言 */
 bool check_master();
 int ocall_store_sealed_master(const char *sealed, int sealed_len);
+int ocall_get_sealed_len(const char *file_name);
 int ocall_get_sealed_master(uint8_t *sealed, int *sealed_len);
 int master_sealing(sgx_enclave_id_t eid, std::string request_json,
     std::string &response_json, std::string error_message);
@@ -963,7 +964,19 @@ int ocall_store_sealed_master(const char *sealed, int sealed_len)
     ofs.write(sealed, sealed_len);
     return 0;
 }
+int ocall_get_sealed_len(const char *file_name) {
+    std::ifstream ifs(file_name, std::ios::binary);
+    if(!ifs)
+    {
+        print_debug_message("failed to get", INFO);
+        return -1;
+    }
 
+    ifs.seekg(0, std::ios::end);
+    int sealed_len = ifs.tellg();
+    ifs.close();
+    return sealed_len;
+}
 int ocall_get_sealed_master(uint8_t *sealed, int *sealed_len) {
     std::ifstream ifs("master.dat", std::ios::binary);
     std::cout << "testsetestse" << std::endl;

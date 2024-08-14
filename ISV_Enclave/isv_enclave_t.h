@@ -36,6 +36,7 @@ sgx_status_t SGX_CDECL ocall_print(const char* str, int log_type);
 sgx_status_t SGX_CDECL ocall_print_status(sgx_status_t st);
 sgx_status_t SGX_CDECL ocall_print_binary(uint8_t* bin, int bin_size, int log_type);
 sgx_status_t SGX_CDECL ocall_store_sealed_master(int* retval, const char* sealed, int sealed_len);
+sgx_status_t SGX_CDECL ocall_get_sealed_len(int* retval, const char* file_name);
 sgx_status_t SGX_CDECL ocall_get_sealed_master(int* retval, uint8_t* sealed, int* sealed_len);
 
 #ifdef __cplusplus

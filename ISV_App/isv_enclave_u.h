@@ -35,6 +35,10 @@ void SGX_UBRIDGE(SGX_NOCONVENTION, ocall_print_binary, (uint8_t* bin, int bin_si
 #define OCALL_STORE_SEALED_MASTER_DEFINED__
 int SGX_UBRIDGE(SGX_NOCONVENTION, ocall_store_sealed_master, (const char* sealed, int sealed_len));
 #endif
+#ifndef OCALL_GET_SEALED_LEN_DEFINED__
+#define OCALL_GET_SEALED_LEN_DEFINED__
+int SGX_UBRIDGE(SGX_NOCONVENTION, ocall_get_sealed_len, (const char* file_name));
+#endif
 #ifndef OCALL_GET_SEALED_MASTER_DEFINED__
 #define OCALL_GET_SEALED_MASTER_DEFINED__
 int SGX_UBRIDGE(SGX_NOCONVENTION, ocall_get_sealed_master, (uint8_t* sealed, int* sealed_len));

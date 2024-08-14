@@ -144,6 +144,11 @@ typedef struct ms_ocall_store_sealed_master_t {
 	int ms_sealed_len;
 } ms_ocall_store_sealed_master_t;
 
+typedef struct ms_ocall_get_sealed_len_t {
+	int ms_retval;
+	const char* ms_file_name;
+} ms_ocall_get_sealed_len_t;
+
 typedef struct ms_ocall_get_sealed_master_t {
 	int ms_retval;
 	uint8_t* ms_sealed;
@@ -1118,10 +1123,11 @@ SGX_EXTERNC const struct {
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[5][13];
+	uint8_t entry_table[6][13];
 } g_dyn_entry_table = {
-	5,
+	6,
 	{
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
@@ -1282,7 +1288,7 @@ sgx_status_t SGX_CDECL ocall_print_binary(uint8_t* bin, int bin_size, int log_ty
 sgx_status_t SGX_CDECL ocall_store_sealed_master(int* retval, const char* sealed, int sealed_len)
 {
 	sgx_status_t status = SGX_SUCCESS;
-	size_t _len_sealed = sealed ? strlen(sealed) + 1 : 0;
+	size_t _len_sealed = sealed_len;
 
 	ms_ocall_store_sealed_master_t* ms = NULL;
 	size_t ocalloc_size = sizeof(ms_ocall_store_sealed_master_t);
@@ -1328,6 +1334,63 @@ sgx_status_t SGX_CDECL ocall_store_sealed_master(int* retval, const char* sealed
 	}
 
 	status = sgx_ocall(3, ms);
+
+	if (status == SGX_SUCCESS) {
+		if (retval) {
+			if (memcpy_s((void*)retval, sizeof(*retval), &ms->ms_retval, sizeof(ms->ms_retval))) {
+				sgx_ocfree();
+				return SGX_ERROR_UNEXPECTED;
+			}
+		}
+	}
+	sgx_ocfree();
+	return status;
+}
+
+sgx_status_t SGX_CDECL ocall_get_sealed_len(int* retval, const char* file_name)
+{
+	sgx_status_t status = SGX_SUCCESS;
+	size_t _len_file_name = file_name ? strlen(file_name) + 1 : 0;
+
+	ms_ocall_get_sealed_len_t* ms = NULL;
+	size_t ocalloc_size = sizeof(ms_ocall_get_sealed_len_t);
+	void *__tmp = NULL;
+
+
+	CHECK_ENCLAVE_POINTER(file_name, _len_file_name);
+
+	if (ADD_ASSIGN_OVERFLOW(ocalloc_size, (file_name != NULL) ? _len_file_name : 0))
+		return SGX_ERROR_INVALID_PARAMETER;
+
+	__tmp = sgx_ocalloc(ocalloc_size);
+	if (__tmp == NULL) {
+		sgx_ocfree();
+		return SGX_ERROR_UNEXPECTED;
+	}
+	ms = (ms_ocall_get_sealed_len_t*)__tmp;
+	__tmp = (void *)((size_t)__tmp + sizeof(ms_ocall_get_sealed_len_t));
+	ocalloc_size -= sizeof(ms_ocall_get_sealed_len_t);
+
+	if (file_name != NULL) {
+		if (memcpy_verw_s(&ms->ms_file_name, sizeof(const char*), &__tmp, sizeof(const char*))) {
+			sgx_ocfree();
+			return SGX_ERROR_UNEXPECTED;
+		}
+		if (_len_file_name % sizeof(*file_name) != 0) {
+			sgx_ocfree();
+			return SGX_ERROR_INVALID_PARAMETER;
+		}
+		if (memcpy_verw_s(__tmp, ocalloc_size, file_name, _len_file_name)) {
+			sgx_ocfree();
+			return SGX_ERROR_UNEXPECTED;
+		}
+		__tmp = (void *)((size_t)__tmp + _len_file_name);
+		ocalloc_size -= _len_file_name;
+	} else {
+		ms->ms_file_name = NULL;
+	}
+
+	status = sgx_ocall(4, ms);
 
 	if (status == SGX_SUCCESS) {
 		if (retval) {
@@ -1405,7 +1468,7 @@ sgx_status_t SGX_CDECL ocall_get_sealed_master(int* retval, uint8_t* sealed, int
 		ms->ms_sealed_len = NULL;
 	}
 
-	status = sgx_ocall(4, ms);
+	status = sgx_ocall(5, ms);
 
 	if (status == SGX_SUCCESS) {
 		if (retval) {

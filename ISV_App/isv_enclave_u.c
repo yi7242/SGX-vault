@@ -118,6 +118,11 @@ typedef struct ms_ocall_store_sealed_master_t {
 	int ms_sealed_len;
 } ms_ocall_store_sealed_master_t;
 
+typedef struct ms_ocall_get_sealed_len_t {
+	int ms_retval;
+	const char* ms_file_name;
+} ms_ocall_get_sealed_len_t;
+
 typedef struct ms_ocall_get_sealed_master_t {
 	int ms_retval;
 	uint8_t* ms_sealed;
@@ -156,6 +161,14 @@ static sgx_status_t SGX_CDECL isv_enclave_ocall_store_sealed_master(void* pms)
 	return SGX_SUCCESS;
 }
 
+static sgx_status_t SGX_CDECL isv_enclave_ocall_get_sealed_len(void* pms)
+{
+	ms_ocall_get_sealed_len_t* ms = SGX_CAST(ms_ocall_get_sealed_len_t*, pms);
+	ms->ms_retval = ocall_get_sealed_len(ms->ms_file_name);
+
+	return SGX_SUCCESS;
+}
+
 static sgx_status_t SGX_CDECL isv_enclave_ocall_get_sealed_master(void* pms)
 {
 	ms_ocall_get_sealed_master_t* ms = SGX_CAST(ms_ocall_get_sealed_master_t*, pms);
@@ -166,14 +179,15 @@ static sgx_status_t SGX_CDECL isv_enclave_ocall_get_sealed_master(void* pms)
 
 static const struct {
 	size_t nr_ocall;
-	void * table[5];
+	void * table[6];
 } ocall_table_isv_enclave = {
-	5,
+	6,
 	{
 		(void*)isv_enclave_ocall_print,
 		(void*)isv_enclave_ocall_print_status,
 		(void*)isv_enclave_ocall_print_binary,
 		(void*)isv_enclave_ocall_store_sealed_master,
+		(void*)isv_enclave_ocall_get_sealed_len,
 		(void*)isv_enclave_ocall_get_sealed_master,
 	}
 };
