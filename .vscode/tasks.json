@@ -1,0 +1,28 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        // Use make command with Makefile
+        {
+            "label": "Execute make",
+            "type": "shell",
+            "command": "make",
+            "args": [],
+            // cwdにはMakefileがあるディレクトリを指定
+            "options": {"cwd": "${workspaceFolder}"}, 
+            "group": "build"
+         },
+
+       // Execute make clean
+       {
+            "label": "Execute make clean",
+            "type": "shell",
+            "command": "make",
+            "args": ["clean"],
+            // cwdにはMakefileがあるディレクトリを指定
+            "options": {"cwd": "${workspaceFolder}"},
+              "group": "build"
+       }
+    ]
+}
