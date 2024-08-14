@@ -242,7 +242,7 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
     }
 }
 
-void decrypt_message(sgx_ra_context_t ra_ctx, uint8_t *cipher, size_t cipher_len, uint8_t *iv, uint8_t *tag, uint8_t *plain) {
+sgx_status_t decrypt_message(sgx_ra_context_t ra_ctx, uint8_t *cipher, size_t cipher_len, uint8_t *iv, uint8_t *tag, uint8_t *plain) {
     ocall_print("Starting decryption...", 1);
     sgx_status_t status = SGX_SUCCESS;
     sgx_ra_key_128_t sk_key, mk_key;
@@ -254,7 +254,7 @@ void decrypt_message(sgx_ra_context_t ra_ctx, uint8_t *cipher, size_t cipher_len
     {
         ocall_print("Failed to get session key.", 2);
         ocall_print_status(status);
-        return;
+        return status;
     }
     status = sgx_rijndael128GCM_decrypt(&sk_key, cipher,
         cipher_len, plain, iv, 12, NULL, 0, 
@@ -264,12 +264,12 @@ void decrypt_message(sgx_ra_context_t ra_ctx, uint8_t *cipher, size_t cipher_len
     {
         ocall_print("Failed to decrypt cipher.", 2);
         ocall_print_status(status);
-        return;
+        return status;
     }
     ocall_print("Decrypted message(string)", 0);
     ocall_print((const char*)plain, 0);
     ocall_print_status(status);
-    return;
+    return status;
 }
 
 int calc_sealed_len(int message_len)
@@ -319,7 +319,7 @@ int calc_unsealed_len(uint8_t *sealed, int sealed_len)
 
 
 
-void do_unsealing(uint8_t *sealed, int sealed_len,
+sgx_status_t do_unsealing(uint8_t *sealed, int sealed_len,
 	uint8_t *unsealed, int unsealed_len)
 {
     ocall_print("Starting unsealing...", 1);
@@ -327,4 +327,12 @@ void do_unsealing(uint8_t *sealed, int sealed_len,
 	status = sgx_unseal_data((sgx_sealed_data_t*)sealed, NULL, 0,
 		unsealed, (uint32_t*)&unsealed_len);
 	ocall_print_status(status);
+    if (status != SGX_SUCCESS) {
+        ocall_print("Failed to unseal data", 2);
+    }
+    else {
+        ocall_print("Unsealed data(string)", 0);
+        ocall_print((const char*)unsealed, 0);
+    }
+    return status;
 }
