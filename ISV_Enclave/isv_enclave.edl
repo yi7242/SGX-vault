@@ -29,20 +29,6 @@ enclave
             [in, size=master_len]uint8_t *master, size_t master_len,
             [in, size=12]uint8_t *iv,
             [in, size=16]uint8_t *master_tag, int policy);
-            
-        public int calc_sealed_len(int message_len);
-		
-		public void do_sealing([in, size=message_len]uint8_t *message,
-			int message_len, [in, out, size=sealed_len]uint8_t *sealed,
-			int sealed_len, int policy);
-
-		public int calc_unsealed_len([in, size=sealed_len]uint8_t *sealed,
-			int sealed_len);
-
-		public void do_unsealing([in, size=sealed_len]uint8_t *sealed,
-			int sealed_len,
-			[in, out, size=unsealed_len]uint8_t *unsealed,
-			int unsealed_len, [out]int *error_flag);
     };
 
     /* OCALLのプロトタイプを記述 */
