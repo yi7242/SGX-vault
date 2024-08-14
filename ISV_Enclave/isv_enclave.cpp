@@ -227,20 +227,19 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
             int get_sealed_len = -1;
             check = 0;
             ocall_get_sealed_master(&check,get_sealed, &get_sealed_len);
-            int checklen = strlen((const char*)get_sealed);
-            ocall_print("checklen", 0);
-            ocall_print((const char*)get_sealed, 0);
-            ocall_print(std::to_string(checklen).c_str(), 0);
+
+            uint8_t* new_get_sealed = new uint8_t[get_sealed_len]();
+            memcpy(new_get_sealed, get_sealed, get_sealed_len);
             if (check == -1) {
                 ocall_print("Failed to get sealed from enclave", 2);
             }
-            // ocall_print((const char*)get_sealed, 0);
-            int est_unsealed_len = calc_unsealed_len(get_sealed, get_sealed_len);
-            ocall_print("get seal test", 0);
-            const char *char_len = std::to_string(get_sealed_len).c_str();
-            ocall_print(char_len, 0);
-            uint8_t* final_unsealed = new uint8_t[est_unsealed_len]();
-            do_unsealing(get_sealed, get_sealed_len, final_unsealed, est_unsealed_len, &check);
+            ocall_print_binary(new_get_sealed, get_sealed_len, 0);
+            int est_unsealed_len = calc_unsealed_len(new_get_sealed, get_sealed_len);
+            ocall_print("est_unsealed_len", 0);
+            ocall_print(std::to_string(est_unsealed_len).c_str(), 0);
+            
+            uint8_t* final_unsealed = new uint8_t[100]();
+            do_unsealing(new_get_sealed, get_sealed_len, final_unsealed, 14, &check);
             ocall_print("get final unseal", 0);
             ocall_print((const char*)final_unsealed, 0);
         }
