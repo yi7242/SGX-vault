@@ -301,3 +301,8 @@ $(Signed_Enclave_Name): $(Enclave_Name)
 
 clean:
 	@rm -f $(App_Name) $(SP_App_Name) $(Enclave_Name) $(Signed_Enclave_Name) $(App_Cpp_Objects) $(SP_Cpp_Objects) ISV_App/isv_enclave_u.* $(Enclave_Cpp_Objects) ISV_Enclave/isv_enclave_t.*
+
+.PHONY: d
+
+d: 
+	@rm -f master.dat
