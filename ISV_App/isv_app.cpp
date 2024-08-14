@@ -61,6 +61,18 @@ void ocall_print(const char *str, int log_type)
 
     return;
 }
+void ocall_print_binary(const char *str, int log_type)
+{
+    MESSAGE_TYPE type;
+    if(log_type == 0) type = DEBUG_LOG;
+    else if(log_type == 1) type = INFO;
+    else type = ERROR;
+ 
+    print_debug_message("OCALL output-> ", type);
+    print_debug_message(str, type);
+
+    return;
+}
 
 
 /* SGXステータスを識別し具体的な内容表示する */
@@ -964,15 +976,15 @@ int ocall_get_sealed_master(uint8_t *sealed, int *sealed_len) {
     ifs.seekg(0, std::ios::end);
     *sealed_len = ifs.tellg();
     ifs.seekg(0, std::ios::beg);
-
-    sealed = new uint8_t[*sealed_len];
-
+    uint8_t *sealed2 = new uint8_t[*sealed_len];
 
     /* Convert ifstream to char array */
-    ifs.read((char*)sealed, *sealed_len);
+    ifs.read((char*)sealed2, *sealed_len);
+    print_debug_binary("sealed", sealed2, *sealed_len, INFO);
+    memcpy(sealed, sealed2, *sealed_len);
     print_debug_message("success to get seal", INFO);
 
-    print_debug_message(std::string((char*)sealed), INFO);
+    std::cout << sealed << std::endl;
     return 0;
 };
 int main()

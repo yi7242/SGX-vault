@@ -227,6 +227,10 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
             int get_sealed_len = -1;
             check = 0;
             ocall_get_sealed_master(&check,get_sealed, &get_sealed_len);
+            int checklen = strlen((const char*)get_sealed);
+            ocall_print("checklen", 0);
+            ocall_print((const char*)get_sealed, 0);
+            ocall_print(std::to_string(checklen).c_str(), 0);
             if (check == -1) {
                 ocall_print("Failed to get sealed from enclave", 2);
             }
@@ -235,7 +239,7 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
             ocall_print("get seal test", 0);
             const char *char_len = std::to_string(get_sealed_len).c_str();
             ocall_print(char_len, 0);
-            uint8_t* final_unsealed = new uint8_t[est_unsealed_len+10]();
+            uint8_t* final_unsealed = new uint8_t[est_unsealed_len]();
             do_unsealing(get_sealed, get_sealed_len, final_unsealed, est_unsealed_len, &check);
             ocall_print("get final unseal", 0);
             ocall_print((const char*)final_unsealed, 0);
@@ -299,7 +303,7 @@ void do_unsealing(uint8_t *sealed, int sealed_len,
 
 	status = sgx_unseal_data((sgx_sealed_data_t*)sealed, NULL, 0,
 		unsealed, (uint32_t*)&unsealed_len);
-    ocall_print_status("heelp");
+    ocall_print("heelp", 0);
 	ocall_print_status(status);
 
 	if(status != SGX_SUCCESS)
