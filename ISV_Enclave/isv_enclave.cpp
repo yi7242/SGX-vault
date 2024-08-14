@@ -180,15 +180,6 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
         ocall_print_status(status);
         return status;
     }
-
-    if(master_len > 32)
-    {
-        const char *message = "The cipher size is too large.";
-        ocall_print(message, 2);
-        status = SGX_ERROR_INVALID_PARAMETER;
-        return status;
-    }
-
     /* GCMでは暗号文と平文の長さが同一 */
     uint8_t *master_plain = new uint8_t[master_len]();    
 
@@ -251,6 +242,36 @@ sgx_status_t ecall_master_sealing(sgx_ra_context_t ra_ctx,
     }
 }
 
+void decrypt_message(sgx_ra_context_t ra_ctx, uint8_t *cipher, size_t cipher_len, uint8_t *iv, uint8_t *tag, uint8_t *plain) {
+    ocall_print("Starting decryption...", 1);
+    sgx_status_t status = SGX_SUCCESS;
+    sgx_ra_key_128_t sk_key, mk_key;
+
+    status = sgx_ra_get_keys(ra_ctx, SGX_RA_KEY_SK, &sk_key);
+    status = sgx_ra_get_keys(ra_ctx, SGX_RA_KEY_MK, &mk_key);
+
+    if(status != SGX_SUCCESS)
+    {
+        ocall_print("Failed to get session key.", 2);
+        ocall_print_status(status);
+        return;
+    }
+    status = sgx_rijndael128GCM_decrypt(&sk_key, cipher,
+        cipher_len, plain, iv, 12, NULL, 0, 
+        (sgx_aes_gcm_128bit_tag_t*)master_tag);
+    
+    if(status != SGX_SUCCESS)
+    {
+        ocall_print("Failed to decrypt cipher.", 2);
+        ocall_print_status(status);
+        return;
+    }
+    ocall_print("Decrypted message(string)", 0);
+    ocall_print((const char*)plain, 0);
+    ocall_print_status(status);
+    return;
+}
+
 int calc_sealed_len(int message_len)
 {
 	return sgx_calc_sealed_data_size(0, message_len);
@@ -299,17 +320,11 @@ int calc_unsealed_len(uint8_t *sealed, int sealed_len)
 
 
 void do_unsealing(uint8_t *sealed, int sealed_len,
-	uint8_t *unsealed, int unsealed_len, int *error_flag)
+	uint8_t *unsealed, int unsealed_len)
 {
+    ocall_print("Starting unsealing...", 1);
 	sgx_status_t status;
-
 	status = sgx_unseal_data((sgx_sealed_data_t*)sealed, NULL, 0,
 		unsealed, (uint32_t*)&unsealed_len);
-    ocall_print("heelp", 0);
 	ocall_print_status(status);
-
-	if(status != SGX_SUCCESS)
-	{
-		*error_flag = 0xDEADBEEF;
-	}
 }
