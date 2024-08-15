@@ -18,9 +18,7 @@
 #include "../common/hexutil.hpp"
 #include "../common/attestation_status.hpp"
 
-
 using namespace httplib;
-
 
 /* プロトタイプ宣言 */
 bool check_master();
@@ -28,35 +26,36 @@ int ocall_store_sealed_master(const char *sealed, int sealed_len);
 int ocall_get_sealed_len(const char *file_name);
 int ocall_get_sealed_master(uint8_t *sealed, int *sealed_len);
 int master_sealing(sgx_enclave_id_t eid, std::string request_json,
-    std::string &response_json, std::string error_message);
+                   std::string &response_json, std::string error_message);
 int initialize_enclave(sgx_enclave_id_t &eid);
 
 int generate_msg0(sgx_enclave_id_t eid,
-    std::string &response_json, std::string &error_message);
+                  std::string &response_json, std::string &error_message);
 
 int get_msg1(sgx_enclave_id_t eid, std::string request_json,
-    std::string &response_json, std::string &error_message);
+             std::string &response_json, std::string &error_message);
 
 int process_msg2(sgx_enclave_id_t eid, std::string request_json,
-    std::string &response_json, std::string &error_message);
+                 std::string &response_json, std::string &error_message);
 
 int process_msg4(sgx_enclave_id_t eid,
-    std::string request_json, std::string &error_message);
+                 std::string request_json, std::string &error_message);
 
 int sample_addition(sgx_enclave_id_t eid, std::string request_json,
-    std::string &response_json, std::string error_message);
+                    std::string &response_json, std::string error_message);
 
 void destruct_ra_context(sgx_enclave_id_t eid, std::string request_json);
-
-
 
 void ocall_print(const char *str, int log_type)
 {
     MESSAGE_TYPE type;
-    if(log_type == 0) type = DEBUG_LOG;
-    else if(log_type == 1) type = INFO;
-    else type = ERROR;
- 
+    if (log_type == 0)
+        type = DEBUG_LOG;
+    else if (log_type == 1)
+        type = INFO;
+    else
+        type = ERROR;
+
     print_debug_message("OCALL output-> ", type);
     print_debug_message(str, type);
 
@@ -65,41 +64,94 @@ void ocall_print(const char *str, int log_type)
 void ocall_print_binary(uint8_t *bin, int bin_size, int log_type)
 {
     MESSAGE_TYPE type;
-    if(log_type == 0) type = DEBUG_LOG;
-    else if(log_type == 1) type = INFO;
-    else type = ERROR;
- 
+    if (log_type == 0)
+        type = DEBUG_LOG;
+    else if (log_type == 1)
+        type = INFO;
+    else
+        type = ERROR;
+
     print_debug_message("OCALL output-> ", type);
     print_debug_binary("", bin, bin_size, type);
 
     return;
 }
 
-
 /* SGXステータスを識別し具体的な内容表示する */
 void ocall_print_status(sgx_status_t st)
 {
-	print_sgx_status(st);
-	return;
+    print_sgx_status(st);
+    return;
 }
-
 
 /* サーバの実行定義。RA含む各処理はここで完結する */
 void server_logics(sgx_enclave_id_t eid)
 {
     Server svr;
-    svr.Get("/check_master", [](const Request& req, Response& res) {
+    /* パスワードを追加するエンドポイント */
+    svr.Post("/add_password", [&eid](const Request &req, Response &res)
+             {
+        std::string request_json = req.body;
+        std::string response_json, error_message = "";
+
+        // パスワードの追加処理
+        int ret = add_password(eid, request_json, response_json, error_message);
+
+        if(!ret) {
+            res.status = 200; // 正常終了
+        } else {
+            json::JSON res_json_obj;
+            char *error_message_b64;
+
+            error_message_b64 = base64_encode<char, char>(
+                (char*)error_message.c_str(), error_message.length());
+
+            res_json_obj["error_message"] = std::string(error_message_b64);
+            response_json = res_json_obj.dump();
+
+            res.status = 500; // エラー
+        }
+
+        res.set_content(response_json, "application/json"); });
+
+    /* パスワードを取得するエンドポイント */
+    svr.Post("/retrieve_password", [&eid](const Request &req, Response &res)
+             {
+        std::string request_json = req.body;
+        std::string response_json, error_message = "";
+
+        // パスワードの取得処理
+        int ret = retrieve_password(eid, request_json, response_json, error_message);
+
+        if(!ret) {
+            res.status = 200; // 正常終了
+        } else {
+            json::JSON res_json_obj;
+            char *error_message_b64;
+
+            error_message_b64 = base64_encode<char, char>(
+                (char*)error_message.c_str(), error_message.length());
+
+            res_json_obj["error_message"] = std::string(error_message_b64);
+            response_json = res_json_obj.dump();
+
+            res.status = 500; // エラー
+        }
+
+        res.set_content(response_json, "application/json"); });
+
+    svr.Get("/check_master", [](const Request &req, Response &res)
+            {
         bool exist = check_master();
         if (exist) {
             res.set_content("yes", "text/plain");
         } else {
             res.set_content("no", "text/plain");
-        }
-    });
+        } });
 
     /* チャレンジリクエストに応じmsg0を返信 */
-    svr.Get("/msg0", [&eid](const Request& req, Response& res)
-    {
+    svr.Get("/msg0", [&eid](const Request &req, Response &res)
+            {
         std::string response_json, error_message = "";
         int ret = generate_msg0(eid, response_json, error_message);
 
@@ -120,13 +172,11 @@ void server_logics(sgx_enclave_id_t eid)
         }
 
         /* レスポンスを返信 */
-        res.set_content(response_json, "application/json");
-    });
-
+        res.set_content(response_json, "application/json"); });
 
     /* RAコンテキストでSPを識別しmsg1を返信 */
-    svr.Post("/msg1", [&eid](const Request& req, Response& res)
-    {
+    svr.Post("/msg1", [&eid](const Request &req, Response &res)
+             {
         std::string request_json = req.body;
         std::string response_json, error_message = "";
 
@@ -150,13 +200,11 @@ void server_logics(sgx_enclave_id_t eid)
         }
 
         /* レスポンスを返信 */
-        res.set_content(response_json, "application/json");
-    });
-
+        res.set_content(response_json, "application/json"); });
 
     /* msg2を受信・処理しmsg3を返信 */
-    svr.Post("/msg2", [&eid](const Request& req, Response& res)
-    {
+    svr.Post("/msg2", [&eid](const Request &req, Response &res)
+             {
         std::string request_json = req.body;
         std::string response_json, error_message = "";
 
@@ -179,13 +227,11 @@ void server_logics(sgx_enclave_id_t eid)
             res.status = 500;
         }
 
-        res.set_content(response_json, "application/json");
-    });
-
+        res.set_content(response_json, "application/json"); });
 
     /* msg4を受信し処理 */
-    svr.Post("/msg4", [&eid](const Request& req, Response& res)
-    {
+    svr.Post("/msg4", [&eid](const Request &req, Response &res)
+             {
         std::string request_json = req.body;
         std::string response_json, error_message = "";
 
@@ -205,13 +251,11 @@ void server_logics(sgx_enclave_id_t eid)
 
         response_json = res_json_obj.dump();
 
-        res.set_content(response_json, "application/json");
-    });
-
+        res.set_content(response_json, "application/json"); });
 
     /* リモート計算処理テスト（受信した秘密情報のEnclave内での加算） */
-    svr.Post("/sample-addition", [&eid](const Request& req, Response& res)
-    {
+    svr.Post("/sample-addition", [&eid](const Request &req, Response &res)
+             {
         std::string request_json = req.body;
         std::string response_json, error_message = "";
 
@@ -236,11 +280,10 @@ void server_logics(sgx_enclave_id_t eid)
         print_debug_message("send the result response to SP.", INFO);
         print_debug_message("", INFO);
 
-        res.set_content(response_json, "application/json");
-    });
+        res.set_content(response_json, "application/json"); });
 
-    svr.Post("/master_sealing", [&eid](const Request& req, Response& res)
-    {
+    svr.Post("/master_sealing", [&eid](const Request &req, Response &res)
+             {
         std::string request_json = req.body;
         std::string response_json, error_message = "";
         if (check_master()) {
@@ -273,13 +316,11 @@ void server_logics(sgx_enclave_id_t eid)
         print_debug_message("send the result response to SP.", INFO);
         print_debug_message("", INFO);
 
-        res.set_content(response_json, "application/json");
-    });
-
+        res.set_content(response_json, "application/json"); });
 
     /* 受信したRAコンテキストのRAを終了する */
-    svr.Post("/destruct-ra", [&eid](const Request& req, Response& res)
-    {
+    svr.Post("/destruct-ra", [&eid](const Request &req, Response &res)
+             {
         std::string request_json = req.body;
         std::string response_json, error_message = "";
 
@@ -290,28 +331,24 @@ void server_logics(sgx_enclave_id_t eid)
         res_json_obj["message"] = std::string("OK");
         response_json = res_json_obj.dump();
 
-        res.set_content(response_json, "application/json");
-    });
+        res.set_content(response_json, "application/json"); });
 
+    svr.Get("/hi", [](const Request &req, Response &res)
+            { res.set_content("Hello World!", "text/plain"); });
 
-    svr.Get("/hi", [](const Request& req, Response& res) {
-    res.set_content("Hello World!", "text/plain");
-    });
-
-    svr.Get("/stop", [&](const Request& req, Response& res) {
+    svr.Get("/stop", [&](const Request &req, Response &res)
+            {
         /* Enclaveの終了 */
         sgx_destroy_enclave(eid);
 
-        svr.stop();
-    });
+        svr.stop(); });
 
     svr.listen("localhost", 1234);
 }
 
-
 /* msg0（に使用する各データ）を生成 */
 int generate_msg0(sgx_enclave_id_t eid,
-    std::string &response_json, std::string &error_message)
+                  std::string &response_json, std::string &error_message)
 {
     sgx_ra_context_t ra_ctx = -1;
     uint32_t extended_epid_group_id = -1;
@@ -325,11 +362,11 @@ int generate_msg0(sgx_enclave_id_t eid,
     /* RAを初期化し、RA識別用のコンテキスト値を取得する */
     status = ecall_ra_init(eid, &retval, &ra_ctx);
 
-    if(status != SGX_SUCCESS || retval != SGX_SUCCESS)
+    if (status != SGX_SUCCESS || retval != SGX_SUCCESS)
     {
         std::string message;
 
-        if(status != SGX_SUCCESS)
+        if (status != SGX_SUCCESS)
         {
             message = "Failed to ECALL for RA initialization.";
         }
@@ -341,15 +378,14 @@ int generate_msg0(sgx_enclave_id_t eid,
         error_message = message;
 
         print_sgx_status(status);
-        
+
         return -1;
     }
-
 
     /* 拡張EPID-GIDを取得 */
     status = sgx_get_extended_epid_group_id(&extended_epid_group_id);
 
-    if(status != SGX_SUCCESS)
+    if (status != SGX_SUCCESS)
     {
         sgx_status_t retval;
         ecall_ra_close(eid, &retval, ra_ctx);
@@ -360,11 +396,12 @@ int generate_msg0(sgx_enclave_id_t eid,
     }
 
     print_debug_message("RA context number -> " +
-        std::to_string(ra_ctx), DEBUG_LOG);
-    print_debug_message("Extended EPID group ID -> " + 
-        std::to_string(extended_epid_group_id), DEBUG_LOG);
+                            std::to_string(ra_ctx),
+                        DEBUG_LOG);
+    print_debug_message("Extended EPID group ID -> " +
+                            std::to_string(extended_epid_group_id),
+                        DEBUG_LOG);
     print_debug_message("Generating msg0 completed.", INFO);
-
 
     /* レスポンス用JSONを生成 */
     std::string ra_ctx_str, ex_epid_gid_str;
@@ -375,10 +412,10 @@ int generate_msg0(sgx_enclave_id_t eid,
 
     /* 通信用にBase64化 */
     ra_ctx_b64 = base64_encode<char, char>(
-        (char*)ra_ctx_str.c_str(), ra_ctx_str.length());
-    
+        (char *)ra_ctx_str.c_str(), ra_ctx_str.length());
+
     ex_epid_gid_b64 = base64_encode<char, char>(
-        (char*)ex_epid_gid_str.c_str(), ex_epid_gid_str.length());
+        (char *)ex_epid_gid_str.c_str(), ex_epid_gid_str.length());
 
     /* レスポンス用jsonを生成 */
     json::JSON res_json_obj;
@@ -389,10 +426,9 @@ int generate_msg0(sgx_enclave_id_t eid,
     return 0;
 }
 
-
 /* msg1を取得 */
 int get_msg1(sgx_enclave_id_t eid, std::string request_json,
-    std::string &response_json, std::string &error_message)
+             std::string &response_json, std::string &error_message)
 {
     print_debug_message("", INFO);
     print_debug_message("==============================================", INFO);
@@ -405,15 +441,15 @@ int get_msg1(sgx_enclave_id_t eid, std::string request_json,
     json::JSON req_json_obj = json::JSON::Load(request_json);
 
     std::string ra_ctx_str = std::string(base64_decode<char, char>(
-        (char*)req_json_obj["ra_context"].ToString().c_str(), ra_ctx_char_size));
+        (char *)req_json_obj["ra_context"].ToString().c_str(), ra_ctx_char_size));
 
     sgx_ra_context_t ra_ctx;
-    
+
     try
     {
         ra_ctx = std::stoi(ra_ctx_str);
     }
-    catch(...)
+    catch (...)
     {
         print_debug_message("Invalid RA context format.", ERROR);
         return -1;
@@ -426,7 +462,7 @@ int get_msg1(sgx_enclave_id_t eid, std::string request_json,
      * 提供される）への関数ポインタである */
     status = sgx_ra_get_msg1(ra_ctx, eid, sgx_ra_get_ga, &msg1);
 
-    if(status != SGX_SUCCESS)
+    if (status != SGX_SUCCESS)
     {
         sgx_status_t retval;
         ecall_ra_close(eid, &retval, ra_ctx);
@@ -443,10 +479,9 @@ int get_msg1(sgx_enclave_id_t eid, std::string request_json,
     /* EPID-GID */
     print_debug_binary("msg1.gid", msg1.gid, 4, DEBUG_LOG);
 
-
     /* レスポンス用JSONを生成 */
-    std::string pub_gx_b64, pub_gy_b64; //キーペアの内公開鍵のx, y成分をBase64形式で保持
-    std::string gid_b64; //EPID-GIDをBase64形式で保持
+    std::string pub_gx_b64, pub_gy_b64; // キーペアの内公開鍵のx, y成分をBase64形式で保持
+    std::string gid_b64;                // EPID-GIDをBase64形式で保持
     json::JSON res_json_obj;
 
     pub_gx_b64 = std::string(
@@ -465,10 +500,9 @@ int get_msg1(sgx_enclave_id_t eid, std::string request_json,
     return 0;
 }
 
-
 /* msg2を処理しmsg3を生成 */
 int process_msg2(sgx_enclave_id_t eid, std::string request_json,
-    std::string &response_json, std::string &error_message)
+                 std::string &response_json, std::string &error_message)
 {
     print_debug_message("==============================================", INFO);
     print_debug_message("Process msg2", INFO);
@@ -479,15 +513,15 @@ int process_msg2(sgx_enclave_id_t eid, std::string request_json,
     size_t tmpsz;
 
     std::string ra_ctx_str = std::string(base64_decode<char, char>(
-        (char*)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
+        (char *)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
 
     sgx_ra_context_t ra_ctx;
-    
+
     try
     {
         ra_ctx = std::stoi(ra_ctx_str);
     }
-    catch(...)
+    catch (...)
     {
         print_debug_message("Invalid RA context format.", ERROR);
         return -1;
@@ -497,38 +531,30 @@ int process_msg2(sgx_enclave_id_t eid, std::string request_json,
     sgx_ra_msg2_t msg2;
 
     /* SPの公開鍵 */
-    memcpy(msg2.g_b.gx, base64_decode<uint8_t, char>(
-        (char*)req_json_obj["msg2"]["g_b"]["gx"].ToString().c_str(), tmpsz), 32);
-    memcpy(msg2.g_b.gy, base64_decode<uint8_t, char>(
-        (char*)req_json_obj["msg2"]["g_b"]["gy"].ToString().c_str(), tmpsz), 32);
-    
+    memcpy(msg2.g_b.gx, base64_decode<uint8_t, char>((char *)req_json_obj["msg2"]["g_b"]["gx"].ToString().c_str(), tmpsz), 32);
+    memcpy(msg2.g_b.gy, base64_decode<uint8_t, char>((char *)req_json_obj["msg2"]["g_b"]["gy"].ToString().c_str(), tmpsz), 32);
+
     /* SPID */
-    memcpy(msg2.spid.id, base64_decode<uint8_t, char>(
-        (char*)req_json_obj["msg2"]["spid"]["id"].ToString().c_str(), tmpsz), 16);
+    memcpy(msg2.spid.id, base64_decode<uint8_t, char>((char *)req_json_obj["msg2"]["spid"]["id"].ToString().c_str(), tmpsz), 16);
 
     /* Quoteタイプと鍵導出関数ID */
     msg2.quote_type = std::stoi(std::string(base64_decode<char, char>(
-        (char*)req_json_obj["msg2"]["quote_type"].ToString().c_str(), tmpsz)));
+        (char *)req_json_obj["msg2"]["quote_type"].ToString().c_str(), tmpsz)));
     msg2.kdf_id = std::stoi(std::string(base64_decode<char, char>(
-        (char*)req_json_obj["msg2"]["kdf_id"].ToString().c_str(), tmpsz)));
+        (char *)req_json_obj["msg2"]["kdf_id"].ToString().c_str(), tmpsz)));
 
     /* Gb_Gaに対するECDSA署名 */
-    memcpy(msg2.sign_gb_ga.x, base64_decode<uint8_t, char>(
-        (char*)req_json_obj["msg2"]["sign_gb_ga"]["x"].ToString().c_str(), tmpsz), 32);
-    memcpy(msg2.sign_gb_ga.y, base64_decode<uint8_t, char>(
-        (char*)req_json_obj["msg2"]["sign_gb_ga"]["y"].ToString().c_str(), tmpsz), 32);
+    memcpy(msg2.sign_gb_ga.x, base64_decode<uint8_t, char>((char *)req_json_obj["msg2"]["sign_gb_ga"]["x"].ToString().c_str(), tmpsz), 32);
+    memcpy(msg2.sign_gb_ga.y, base64_decode<uint8_t, char>((char *)req_json_obj["msg2"]["sign_gb_ga"]["y"].ToString().c_str(), tmpsz), 32);
 
     /* 上記データ群（A）に対するCMAC値 */
-    memcpy(msg2.mac, base64_decode<uint8_t, char>(
-        (char*)req_json_obj["msg2"]["mac"].ToString().c_str(), tmpsz), 16);
-    
+    memcpy(msg2.mac, base64_decode<uint8_t, char>((char *)req_json_obj["msg2"]["mac"].ToString().c_str(), tmpsz), 16);
+
     /* SigRLのサイズとSigRL */
     msg2.sig_rl_size = std::stoi(std::string(base64_decode<char, char>(
-        (char*)req_json_obj["msg2"]["sig_rl_size"].ToString().c_str(), tmpsz)));
-    
-    memcpy(msg2.sig_rl, base64_decode<uint8_t, char>(
-        (char*)req_json_obj["msg2"]["sig_rl"].
-            ToString().c_str(), tmpsz), msg2.sig_rl_size);
+        (char *)req_json_obj["msg2"]["sig_rl_size"].ToString().c_str(), tmpsz)));
+
+    memcpy(msg2.sig_rl, base64_decode<uint8_t, char>((char *)req_json_obj["msg2"]["sig_rl"].ToString().c_str(), tmpsz), msg2.sig_rl_size);
 
     print_debug_message(
         "Received msg2 data----------------------------", DEBUG_LOG);
@@ -546,16 +572,16 @@ int process_msg2(sgx_enclave_id_t eid, std::string request_json,
     print_debug_message("", DEBUG_LOG);
 
     print_debug_binary("msg2.sign_gb_ga.x",
-        (uint8_t*)msg2.sign_gb_ga.x, 32, DEBUG_LOG);
+                       (uint8_t *)msg2.sign_gb_ga.x, 32, DEBUG_LOG);
     print_debug_binary("msg2.sign_gb_ga.y",
-        (uint8_t*)msg2.sign_gb_ga.y, 32, DEBUG_LOG);
+                       (uint8_t *)msg2.sign_gb_ga.y, 32, DEBUG_LOG);
     print_debug_binary("msg2.mac", msg2.mac, 16, DEBUG_LOG);
 
     print_debug_message("msg2.sig_rl_size -> ", DEBUG_LOG);
     print_debug_message(std::to_string(msg2.sig_rl_size), DEBUG_LOG);
     print_debug_message("", DEBUG_LOG);
 
-    if(msg2.sig_rl_size == 0)
+    if (msg2.sig_rl_size == 0)
     {
         print_debug_message("msg2.sig_rl -> ", DEBUG_LOG);
         print_debug_message("(none)", DEBUG_LOG);
@@ -563,18 +589,17 @@ int process_msg2(sgx_enclave_id_t eid, std::string request_json,
     else
     {
         print_debug_binary("msg2.sig_rl",
-            msg2.sig_rl, msg2.sig_rl_size, DEBUG_LOG);
+                           msg2.sig_rl, msg2.sig_rl_size, DEBUG_LOG);
     }
-    
+
     print_debug_message(
         "----------------------------------------------", DEBUG_LOG);
-    
 
     print_debug_message("==============================================", INFO);
     print_debug_message("Process msg3", INFO);
     print_debug_message("==============================================", INFO);
     print_debug_message("", INFO);
-    
+
     sgx_ra_msg3_t *msg3;
     sgx_status_t status;
     uint32_t msg3_size;
@@ -582,11 +607,11 @@ int process_msg2(sgx_enclave_id_t eid, std::string request_json,
     /* msg2を処理しmsg3を取得する。
      * sgx_ra_proc_msg2_trusted及びsgx_ra_get_msg3_trustedは、
      * sgx_tkey_exchange.edlにより提供されているプロキシ関数ポインタである */
-    status = sgx_ra_proc_msg2(ra_ctx, eid, 
-        sgx_ra_proc_msg2_trusted, sgx_ra_get_msg3_trusted,
-        &msg2, sizeof(sgx_ra_msg2_t) + msg2.sig_rl_size, &msg3, &msg3_size);
+    status = sgx_ra_proc_msg2(ra_ctx, eid,
+                              sgx_ra_proc_msg2_trusted, sgx_ra_get_msg3_trusted,
+                              &msg2, sizeof(sgx_ra_msg2_t) + msg2.sig_rl_size, &msg3, &msg3_size);
 
-    if(status != SGX_SUCCESS)
+    if (status != SGX_SUCCESS)
     {
         print_sgx_status(status);
         sgx_status_t retval;
@@ -602,10 +627,10 @@ int process_msg2(sgx_enclave_id_t eid, std::string request_json,
     print_debug_binary("msg3.g_a.gx", msg3->g_a.gx, 32, DEBUG_LOG);
     print_debug_binary("msg3.g_a.gy", msg3->g_a.gy, 32, DEBUG_LOG);
     print_debug_binary("msg3.ps_sec_prop.sgx_ps_sec_prop_desc",
-        msg3->ps_sec_prop.sgx_ps_sec_prop_desc, 256, DEBUG_LOG);
+                       msg3->ps_sec_prop.sgx_ps_sec_prop_desc, 256, DEBUG_LOG);
     print_debug_binary("msg3.quote",
-        msg3->quote, quote_size, DEBUG_LOG);
-    
+                       msg3->quote, quote_size, DEBUG_LOG);
+
     /* quoteは以下の記述でも正常に出力できる。参考までに掲載
     sgx_quote_t *quote = (sgx_quote_t*)msg3->quote;
     print_debug_message(std::to_string(quote->signature_len), DEBUG_LOG);
@@ -617,55 +642,57 @@ int process_msg2(sgx_enclave_id_t eid, std::string request_json,
     print_debug_message(std::to_string(quote_size), DEBUG_LOG);
     print_debug_message("", DEBUG_LOG);
 
-
     /* msg3の内容をレスポンスのJSONにロード */
     json::JSON res_json_obj;
 
-    res_json_obj["msg3"]["mac"] = 
+    res_json_obj["msg3"]["mac"] =
         std::string(base64_encode<char, uint8_t>(msg3->mac, 16));
 
-    res_json_obj["msg3"]["g_a"]["gx"] = 
+    res_json_obj["msg3"]["g_a"]["gx"] =
         std::string(base64_encode<char, uint8_t>(msg3->g_a.gx, 32));
 
-    res_json_obj["msg3"]["g_a"]["gy"] = 
+    res_json_obj["msg3"]["g_a"]["gy"] =
         std::string(base64_encode<char, uint8_t>(msg3->g_a.gy, 32));
 
-    res_json_obj["msg3"]["ps_sec_prop"]["sgx_ps_sec_prop_desc"] = 
+    res_json_obj["msg3"]["ps_sec_prop"]["sgx_ps_sec_prop_desc"] =
         std::string(base64_encode<char, uint8_t>(
             msg3->ps_sec_prop.sgx_ps_sec_prop_desc, 256));
 
-    res_json_obj["msg3"]["quote"] = 
+    res_json_obj["msg3"]["quote"] =
         std::string(base64_encode<char, uint8_t>(msg3->quote, quote_size));
-    
+
     print_debug_message("Base64-encoded msg3 members-------------------", DEBUG_LOG);
-    
-    print_debug_message("msg3.mac -> " + 
-        res_json_obj["msg3"]["mac"].ToString(), DEBUG_LOG);
-    
-    print_debug_message("msg3.g_a.gx -> " + 
-        res_json_obj["msg3"]["g_a"]["gx"].ToString(), DEBUG_LOG);
 
-    print_debug_message("msg3.g_a.gy -> " + 
-        res_json_obj["msg3"]["g_a"]["gy"].ToString(), DEBUG_LOG);
+    print_debug_message("msg3.mac -> " +
+                            res_json_obj["msg3"]["mac"].ToString(),
+                        DEBUG_LOG);
 
-    print_debug_message("msg3.ps_sec_prop.sgx_ps_sec_prop_desc -> " + 
-        res_json_obj["msg3"]["ps_sec_prop"]["sgx_ps_sec_prop_desc"].ToString(),
-        DEBUG_LOG);
+    print_debug_message("msg3.g_a.gx -> " +
+                            res_json_obj["msg3"]["g_a"]["gx"].ToString(),
+                        DEBUG_LOG);
 
-    print_debug_message("msg3.quote -> " + 
-        res_json_obj["msg3"]["quote"].ToString(), DEBUG_LOG);
-    
+    print_debug_message("msg3.g_a.gy -> " +
+                            res_json_obj["msg3"]["g_a"]["gy"].ToString(),
+                        DEBUG_LOG);
+
+    print_debug_message("msg3.ps_sec_prop.sgx_ps_sec_prop_desc -> " +
+                            res_json_obj["msg3"]["ps_sec_prop"]["sgx_ps_sec_prop_desc"].ToString(),
+                        DEBUG_LOG);
+
+    print_debug_message("msg3.quote -> " +
+                            res_json_obj["msg3"]["quote"].ToString(),
+                        DEBUG_LOG);
+
     print_debug_message("", DEBUG_LOG);
-    
+
     response_json = res_json_obj.dump();
 
     return 0;
 }
 
-
 /* msg4を処理 */
 int process_msg4(sgx_enclave_id_t eid,
-    std::string request_json, std::string &error_message)
+                 std::string request_json, std::string &error_message)
 {
     print_debug_message("==============================================", INFO);
     print_debug_message("Process msg4", INFO);
@@ -678,16 +705,16 @@ int process_msg4(sgx_enclave_id_t eid,
 
     /* RAコンテキストをデコード */
     std::string ra_ctx_str = std::string(base64_decode<char, char>(
-        (char*)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
+        (char *)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
 
     /* msg4をJSONから抽出 */
     sgx_ra_context_t ra_ctx;
-    
+
     try
     {
         ra_ctx = std::stoi(ra_ctx_str);
     }
-    catch(...)
+    catch (...)
     {
         error_message = "Invalid RA context format.";
         print_debug_message(error_message, ERROR);
@@ -695,12 +722,14 @@ int process_msg4(sgx_enclave_id_t eid,
     }
 
     std::string ra_status_str = std::string(base64_decode<char, char>(
-        (char*)req_json_obj["msg4"]["status"].ToString().c_str(), tmpsz));
+        (char *)req_json_obj["msg4"]["status"].ToString().c_str(), tmpsz));
 
-    if(ra_status_str == "Trusted") msg4.status = Trusted;
-    else if(ra_status_str == "Conditionally_Trusted")
+    if (ra_status_str == "Trusted")
+        msg4.status = Trusted;
+    else if (ra_status_str == "Conditionally_Trusted")
         msg4.status = Conditionally_Trusted;
-    else if(ra_status_str == "NotTrusted") msg4.status = NotTrusted;
+    else if (ra_status_str == "NotTrusted")
+        msg4.status = NotTrusted;
     else
     {
         error_message = "Unexpected status in msg4.";
@@ -708,23 +737,21 @@ int process_msg4(sgx_enclave_id_t eid,
         return -1;
     }
 
-    memcpy(msg4.description, base64_decode<char, char>(
-        (char*)req_json_obj["msg4"]["description"].ToString().c_str(), tmpsz), 512);
-    
-    memcpy(&msg4.pib, base64_decode<uint8_t, char>(
-        (char*)req_json_obj["msg4"]["pib"].ToString().c_str(), tmpsz),
-            SGX_PLATFORM_INFO_SIZE);
+    memcpy(msg4.description, base64_decode<char, char>((char *)req_json_obj["msg4"]["description"].ToString().c_str(), tmpsz), 512);
+
+    memcpy(&msg4.pib, base64_decode<uint8_t, char>((char *)req_json_obj["msg4"]["pib"].ToString().c_str(), tmpsz),
+           SGX_PLATFORM_INFO_SIZE);
 
     print_debug_message(msg4.description, INFO);
 
     std::string message;
-    
-    if(msg4.status == NotTrusted)
+
+    if (msg4.status == NotTrusted)
     {
         /* RA拒絶時はRAコンテキストを削除 */
         sgx_status_t retval;
         ecall_ra_close(eid, &retval, ra_ctx);
-        
+
         message = "RA is refused by SP. RA context: ";
         message += std::to_string(ra_ctx);
         print_debug_message(message, INFO);
@@ -742,38 +769,35 @@ int process_msg4(sgx_enclave_id_t eid,
 }
 
 int master_sealing(sgx_enclave_id_t eid, std::string request_json,
-    std::string &response_json, std::string error_message) {
+                   std::string &response_json, std::string error_message)
+{
     print_debug_message("==============================================", INFO);
     print_debug_message("Master Ceiling", INFO);
     print_debug_message("==============================================", INFO);
     print_debug_message("", INFO);
 
-    json::JSON req_json_obj= json::JSON::Load(request_json);
+    json::JSON req_json_obj = json::JSON::Load(request_json);
 
     uint8_t *master;
     uint8_t *iv, *master_tag;
     size_t master_len, tmpsz;
     sgx_ra_context_t ra_ctx;
 
-    ra_ctx = std::stoi(base64_decode<char, char>
-        ((char*)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
-    
-    master = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["master"].ToString().c_str(), master_len);
+    ra_ctx = std::stoi(base64_decode<char, char>((char *)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
 
-    iv = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["iv"].ToString().c_str(), tmpsz);
-    master_tag = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["master_tag"].ToString().c_str(), tmpsz);
+    master = base64_decode<uint8_t, char>((char *)req_json_obj["master"].ToString().c_str(), master_len);
+
+    iv = base64_decode<uint8_t, char>((char *)req_json_obj["iv"].ToString().c_str(), tmpsz);
+    master_tag = base64_decode<uint8_t, char>((char *)req_json_obj["master_tag"].ToString().c_str(), tmpsz);
 
     /* ECALLを行い秘密計算による加算を実行 */
     print_debug_message("Invoke ECALL for master sealing.", DEBUG_LOG);
     print_debug_message("", DEBUG_LOG);
     sgx_status_t master_status, master_retval;
-    master_status = ecall_master_sealing(eid, &master_retval, ra_ctx, master, master_len, iv,master_tag,0);
-    if(master_status != SGX_SUCCESS)
+    master_status = ecall_master_sealing(eid, &master_retval, ra_ctx, master, master_len, iv, master_tag, 0);
+    if (master_status != SGX_SUCCESS)
     {
-        error_message = "Failed to complete sample addition ECALL.";   
+        error_message = "Failed to complete sample addition ECALL.";
         return -1;
     }
 
@@ -781,45 +805,37 @@ int master_sealing(sgx_enclave_id_t eid, std::string request_json,
     res_json_obj["test"] = "success";
     response_json = res_json_obj.dump();
     return 0;
-    }
+}
 /* SPから受信した2値をEnclave内で復号し加算して結果を返却 */
 int sample_addition(sgx_enclave_id_t eid, std::string request_json,
-    std::string &response_json, std::string error_message)
+                    std::string &response_json, std::string error_message)
 {
     print_debug_message("==============================================", INFO);
     print_debug_message("Sample Addition", INFO);
     print_debug_message("==============================================", INFO);
     print_debug_message("", INFO);
 
-    json::JSON req_json_obj= json::JSON::Load(request_json);
+    json::JSON req_json_obj = json::JSON::Load(request_json);
 
     uint8_t *cipher1, *cipher2, *master;
-    uint8_t *iv, *tag1, *tag2,  *master_tag;
+    uint8_t *iv, *tag1, *tag2, *master_tag;
     size_t cipher1_len, cipher2_len, master_len, tmpsz;
     sgx_ra_context_t ra_ctx;
 
-    ra_ctx = std::stoi(base64_decode<char, char>
-        ((char*)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
+    ra_ctx = std::stoi(base64_decode<char, char>((char *)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
 
-    cipher1 = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["cipher1"].ToString().c_str(), cipher1_len);
-    
-    cipher2 = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["cipher2"].ToString().c_str(), cipher2_len);
-    master = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["master"].ToString().c_str(), master_len);
+    cipher1 = base64_decode<uint8_t, char>((char *)req_json_obj["cipher1"].ToString().c_str(), cipher1_len);
 
-    iv = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["iv"].ToString().c_str(), tmpsz);
+    cipher2 = base64_decode<uint8_t, char>((char *)req_json_obj["cipher2"].ToString().c_str(), cipher2_len);
+    master = base64_decode<uint8_t, char>((char *)req_json_obj["master"].ToString().c_str(), master_len);
 
-    tag1 = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["tag1"].ToString().c_str(), tmpsz);
-    
-    tag2 = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["tag2"].ToString().c_str(), tmpsz);
-    master_tag = base64_decode<uint8_t, char>
-        ((char*)req_json_obj["master_tag"].ToString().c_str(), tmpsz);
-    
+    iv = base64_decode<uint8_t, char>((char *)req_json_obj["iv"].ToString().c_str(), tmpsz);
+
+    tag1 = base64_decode<uint8_t, char>((char *)req_json_obj["tag1"].ToString().c_str(), tmpsz);
+
+    tag2 = base64_decode<uint8_t, char>((char *)req_json_obj["tag2"].ToString().c_str(), tmpsz);
+    master_tag = base64_decode<uint8_t, char>((char *)req_json_obj["master_tag"].ToString().c_str(), tmpsz);
+
     sgx_status_t status, retval;
     uint8_t *result, *iv_result, *tag_result;
     size_t result_len;
@@ -838,13 +854,13 @@ int sample_addition(sgx_enclave_id_t eid, std::string request_json,
     print_debug_message("", DEBUG_LOG);
 
     status = ecall_sample_addition(eid, &retval, ra_ctx, cipher1,
-        cipher1_len, cipher2, cipher2_len, iv, tag1, tag2, 
-        result, &result_len, iv_result, tag_result);
+                                   cipher1_len, cipher2, cipher2_len, iv, tag1, tag2,
+                                   result, &result_len, iv_result, tag_result);
     sgx_status_t master_status, master_retval;
-    master_status = ecall_master_sealing(eid, &master_retval, ra_ctx, master, master_len, iv,master_tag,0);
-    if(status != SGX_SUCCESS)
+    master_status = ecall_master_sealing(eid, &master_retval, ra_ctx, master, master_len, iv, master_tag, 0);
+    if (status != SGX_SUCCESS)
     {
-        error_message = "Failed to complete sample addition ECALL.";   
+        error_message = "Failed to complete sample addition ECALL.";
         return -1;
     }
 
@@ -864,7 +880,6 @@ int sample_addition(sgx_enclave_id_t eid, std::string request_json,
     return 0;
 }
 
-
 /* SPから受信したRAコンテキストのRAを破棄 */
 void destruct_ra_context(sgx_enclave_id_t eid, std::string request_json)
 {
@@ -873,20 +888,20 @@ void destruct_ra_context(sgx_enclave_id_t eid, std::string request_json)
     print_debug_message("==============================================", INFO);
     print_debug_message("", INFO);
 
-    json::JSON req_json_obj= json::JSON::Load(request_json);
+    json::JSON req_json_obj = json::JSON::Load(request_json);
     size_t tmpsz;
 
     std::string ra_ctx_str = std::string(base64_decode<char, char>(
-    (char*)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
+        (char *)req_json_obj["ra_context"].ToString().c_str(), tmpsz));
 
     sgx_ra_context_t ra_ctx;
     sgx_status_t retval;
-    
+
     try
     {
         ra_ctx = std::stoi(ra_ctx_str);
     }
-    catch(...)
+    catch (...)
     {
         print_debug_message("Invalid RA context format.", ERROR);
         return;
@@ -900,7 +915,6 @@ void destruct_ra_context(sgx_enclave_id_t eid, std::string request_json)
 
     return;
 }
-
 
 /* Enclaveの初期化 */
 int initialize_enclave(sgx_enclave_id_t &eid)
@@ -917,38 +931,41 @@ int initialize_enclave(sgx_enclave_id_t &eid)
     sgx_status_t status;
 
     sgx_uswitchless_config_t us_config = SGX_USWITCHLESS_CONFIG_INITIALIZER;
-	void* enclave_ex_p[32] = {0};
+    void *enclave_ex_p[32] = {0};
 
-	enclave_ex_p[SGX_CREATE_ENCLAVE_EX_SWITCHLESS_BIT_IDX] = &us_config;
+    enclave_ex_p[SGX_CREATE_ENCLAVE_EX_SWITCHLESS_BIT_IDX] = &us_config;
 
-    /* 
+    /*
      * Switchless Callが有効化されたEnclaveの作成。
      * NULLの部分はEnclaveの属性（sgx_misc_attribute_t）が入る部分であるが、
      * 不要かつ省略可能なのでNULLで省略している。
      */
     status = sgx_create_enclave_ex(enclave_image_name.c_str(), SGX_DEBUG_FLAG,
-                &token, &updated, &eid, NULL, SGX_CREATE_ENCLAVE_EX_SWITCHLESS, 
-                    (const void**)enclave_ex_p);
+                                   &token, &updated, &eid, NULL, SGX_CREATE_ENCLAVE_EX_SWITCHLESS,
+                                   (const void **)enclave_ex_p);
 
-    if(status != SGX_SUCCESS)
-	{
-		/* error_print.cppで定義 */
-		print_sgx_status(status);
-		return -1;
-	}
+    if (status != SGX_SUCCESS)
+    {
+        /* error_print.cppで定義 */
+        print_sgx_status(status);
+        return -1;
+    }
 
     return 0;
 }
-bool check_master() {
-    std::ifstream ifs;            //  ifstream の変数（インスタンス）を生成．
- 
-    ifs.open("master.dat");    //  ファイルを開く．fopen() に相当．
- 
-    if( ! ifs ) {            //  ファイルが開けない場合の処理
+bool check_master()
+{
+    std::ifstream ifs; //  ifstream の変数（インスタンス）を生成．
+
+    ifs.open("master.dat"); //  ファイルを開く．fopen() に相当．
+
+    if (!ifs)
+    { //  ファイルが開けない場合の処理
         return false;
     }
-    else {
-        ifs.close();         
+    else
+    {
+        ifs.close();
         return true;
     }
 }
@@ -956,7 +973,7 @@ bool check_master() {
 int ocall_store_sealed_master(const char *sealed, int sealed_len)
 {
     std::ofstream ofs("master.dat", std::ios::binary);
-    if(!ofs)
+    if (!ofs)
     {
         std::cerr << "Failed to open file for sealed data." << std::endl;
         return -1;
@@ -964,9 +981,10 @@ int ocall_store_sealed_master(const char *sealed, int sealed_len)
     ofs.write(sealed, sealed_len);
     return 0;
 }
-int ocall_get_sealed_len(const char *file_name) {
+int ocall_get_sealed_len(const char *file_name)
+{
     std::ifstream ifs(file_name, std::ios::binary);
-    if(!ifs)
+    if (!ifs)
     {
         print_debug_message("failed to get", INFO);
         return -1;
@@ -977,15 +995,16 @@ int ocall_get_sealed_len(const char *file_name) {
     ifs.close();
     return sealed_len;
 }
-int ocall_get_sealed_master(uint8_t *sealed, int sealed_len) {
+int ocall_get_sealed_master(uint8_t *sealed, int sealed_len)
+{
     std::ifstream ifs("master.dat", std::ios::binary);
-    if(!ifs)
+    if (!ifs)
     {
         print_debug_message("failed to get", INFO);
         return -1;
     }
     uint8_t *sealed2 = new uint8_t[sealed_len];
-    ifs.read((char*)sealed2, sealed_len);
+    ifs.read((char *)sealed2, sealed_len);
     print_debug_binary("sealed", sealed2, sealed_len, INFO);
     memcpy(sealed, sealed2, sealed_len);
     print_debug_message("success to get seal", INFO);
@@ -1001,13 +1020,13 @@ int main()
     sgx_enclave_id_t eid = -1;
 
     /* Enclaveの初期化 */
-    if(initialize_enclave(eid) < 0)
-	{
-		std::cerr << "App: fatal error: Failed to initialize Enclave.";
-		std::cerr << std::endl;
-		exit(1);
+    if (initialize_enclave(eid) < 0)
+    {
+        std::cerr << "App: fatal error: Failed to initialize Enclave.";
+        std::cerr << std::endl;
+        exit(1);
     }
-    
+
     /* サーバの起動（RAの実行） */
     std::thread srvthread(server_logics, eid);
 
